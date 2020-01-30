@@ -42,4 +42,33 @@ BERT는 N개의 인코더 블럭을 지니고 있음. Base 모델은 12개, Larg
 BERT-base 모델의 경우 각각의 토큰 벡터 768차원을 헤드 수 만큼인 12등분 하여 64개씩 12조각으로 차례대로 분리함. 여기에 Scaled Dot-Product Attention을 적용하고 다시 768차원으로 합침.
 이렇게하면 768차원 벡터는 각각 부위별로 12번 Attention 받은 결과가 된다. Softmax는 e의 n승으로 계산하므로 변동폭이 매우 크며, 작은 차이에도 쏠림이 두드러짐. 즉, 값이 큰 스칼라는 살아남고, 작은 쪽은 거의 0에 가까운 값을 multiply하게되어 배제되는 결과를 가져옴.
 
-> - 
+## Scaled Dot-Product Attention
+![scaled dot-product attention](https://cdn-images-1.medium.com/max/1600/1*m-NRoagK_I5fFvBjjS7TZg.png)<br>
+Scaled Dot-Product Attention은 입력값으로 Q, K, V 세 개를 받음. 이는 입력값에 대한 플레이스 홀더로 맨 처음에는 임베딩의 fully-connected 결과, 두 번째 부터는 RNN과 유사하게 이전 인코더 블럭의 결과를 다음 인코더 블럭의 입력으로 사용. BERT는 디코더를 사용하지 않아 Q, K, V의 초기값이 모두 동일함. 저마다 각각 다른 초기화로 인해 실제로는 서로 다른 값에서 출발하지만 입력값의 구성은 동일함. BERT는 이처럼 동일한 토큰이 문장내의 다른 토큰에 대한 Self-Attention 효과를 가짐.
+
+## Position-wise Feed-Forward Network
+![Position-wise Feed-Forward Network](https://cdn-images-1.medium.com/max/1600/1*CQLvEk4zNr_02c8FwwSwCg.png)<br>
+마지막으로 어텐션의 결과를 Position-wise Feed-forward Network로 통과시킴. 
+
+![pwffn](https://latex.codecogs.com/gif.latex?%24%24FFN%28x%29%20%3D%20max%280%2C%20xW1&plus;b1%29W2&plus;b2%24%24)
+두 개의 Linear Transformations로 구성되어 있으며, BERT는 그 사이에 보다 부드러운 형태인 GELU를 적용함. 
+
+## 학습
+BERT 학습 방식의 가장 큰 특징은 Bidirectional 하다는 점. 이는 OpenAI GPT와 구분되는 뚜렷한 차이점. 원래 Transformer는 Bidirectional하지만 이후 출현하는 단어의 예측 확률을 계산하는 Statistical Language Model은 Bidirectional하게 구축할 수 없음.
+
+따라서 BERT는 이 문제를 다른 형태의 문제로 전환하여 Bidirectional이 가능하게 함. 여기에 사용된 두가지 방식이 1) Masked Language Model과 2) Next Sentence Prediction. 이를 위해서 BERT는 Input Embeddings에 특별한 식별자를 추가했는데, 이것이 바로 ```[CLS]```와 ```[SEP]```이다.<br>
+```[SEP]```은 이 문장의 끝을 나타내는 식별자로 두 문장을 구분하는 역할로 쓰임. 이를 통해 QA등의 문제 해결과 pre-train시 Next Sentence Prediction 문제를 해결하는데 사용.
+```[CLS]```은 문장의 맨 앞에 쓰이며 클래스를 뜻함. 이를 통해 분류 문제를 해결하는데 사용함.
+
+## Masked Language Model
+Masked Language Model은 문장의 다음 단어를 예측하는 것이 아니라 문장 내 랜덤한 단어를 마스킹하고 이를 예측하도록 하는 방식으로 Word2Vec의 CBOW 모델과 유사함. 하지만 MLM은 CBOW와 달리 마스킹된 토큰을 맞추도록 학습한 결과를 직접 벡터로 갖기 때문에 보다 직관적인 방식으로 볼 수 있음. 마스킹은 전체 단어의 15% 정도만 진행하며, 모든 토큰을 마스킹하는 것이 아니라 80% 정도만 ```<MASK>```로 처리하고 10%는 랜덤한 단어, 나머지 10%는 정상적인 단어를 그대로 둠.<br>
+
+```<MASK>```토큰에 대해서만 학습한다면 Fine-tuning 시 이 토큰을 보지 못할 것이고 아무것도 예측할 필요가 없다고 생각해 성능에 영향을 끼칠 것이므로 ```<MASK>```토큰이 아닌 것도 예측하도록 학습하여 문장의 모든 단어에 대한 문맥 표현이 학습되도록 함.
+
+Word2Vec의 경우 Softmax의 연산 비용이 높기 때문에 Hierachical Softmax 또는 Negative Sampling을 사용하는데, BERT는 전체 Vocab Size에 대한 Softmax를 모두 계산함. 
+
+## Next Sentence Prediction
+Next Sentence Prediction은 두 문장을 주고 두 번째 문장이 코퍼스 내에서 첫 번째 문장의 바로 다음에 오는지 여부를 예측하도록 하는 방식. 이 방식을 사용하는 이유는 BERT는 Transfer Learning으로 사용되고 QA와 Natural Language Inference(NLI)등의 태스크에서는 Masked Language Model로 학습하는 것 만으로는 충분하지 않았기 때문. 두 문장이 실제로 이어지는지 여부는 50% 비율로 참인 문장과 랜덤하게 추출되어 거짓인 문장의 비율로 구성되며, ```[CLS]```벡터의 Binary Classification 결과를 맞추도록 학습함.
+
+## 임베딩
+ELMo를 포함한 BERT의 가장 큰 특징은 다이나믹 임베딩이라는 점. 이는 기존 Word2Vec, GloVe와 구분되는 가장 뚜렷한 특징으로, 문장 형태와 위치에 따라 동일한 단어도 다른 임베딩을 갖게되어 중의성을 해소할 수 있음. 
