@@ -72,3 +72,6 @@ Next Sentence Prediction은 두 문장을 주고 두 번째 문장이 코퍼스 
 
 ## 임베딩
 ELMo를 포함한 BERT의 가장 큰 특징은 다이나믹 임베딩이라는 점. 이는 기존 Word2Vec, GloVe와 구분되는 가장 뚜렷한 특징으로, 문장 형태와 위치에 따라 동일한 단어도 다른 임베딩을 갖게되어 중의성을 해소할 수 있음. 
+
+<br>
+참고 자료 : [BERT 톺아보기](http://docs.likejazz.com/bert/#%EB%84%A4%EC%9D%B4%EB%B2%84-%EC%98%81%ED%99%94-%EB%A6%AC%EB%B7%B0)
